@@ -7,17 +7,24 @@ import ResultsPanel from '@/components/ResultsPanel';
 import SimulationControls from '@/components/SimulationControls';
 import ChartsPanel from '@/components/ChartsPanel';
 import FuturePredictionCard from '@/components/FuturePredictionCard';
+import SimulationHistory from '@/components/SimulationHistory';
 import { MadeWithDyad } from "@/components/made-with-dyad";
-import { showSuccess } from '@/utils/toast';
+import { runSimulation } from '@/api/client';
+import { showError, showSuccess } from '@/utils/toast';
+import { useQueryClient } from '@tanstack/react-query';
+
+interface City {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  population: number;
+  aqi: number;
+}
 
 const Index = () => {
-  const [selectedCity, setSelectedCity] = useState({ 
-    id: '1', 
-    name: 'New York', 
-    population: '8.4M', 
-    currentAQI: 42, 
-    coords: { x: '25%', y: '35%' } 
-  });
+  const queryClient = useQueryClient();
+  const [selectedCity, setSelectedCity] = useState<City | null>(null);
 
   const [policyValues, setPolicyValues] = useState({
     ev: 45,
@@ -33,24 +40,44 @@ const Index = () => {
     score: 72
   });
 
+  const [isLoading, setIsLoading] = useState(false);
+
   const handlePolicyChange = (key: string, val: number[]) => {
     setPolicyValues(prev => ({ ...prev, [key]: val[0] }));
   };
 
-  const runSimulation = () => {
-    // Mock simulation logic
-    const newCo2 = Math.floor((policyValues.ev + policyValues.renewable + policyValues.transport) / 4);
-    const newAqi = Math.floor((policyValues.trees + policyValues.ev) / 3);
-    const newScore = Math.floor((policyValues.ev + policyValues.trees + policyValues.renewable + policyValues.transport) / 4);
-    
-    setResults({
-      co2: newCo2,
-      aqi: newAqi,
-      temp: -(newCo2 / 20).toFixed(1) as any,
-      score: newScore
-    });
+  const handleRunSimulation = async () => {
+    if (!selectedCity) {
+      showError("Please select a city before running the simulation.");
+      return;
+    }
 
-    showSuccess(`Simulation complete for ${selectedCity.name}!`);
+    setIsLoading(true);
+
+    try {
+      const response = await runSimulation({
+        city: selectedCity.name,
+        ev_percent: policyValues.ev,
+        trees_planted: Math.round(policyValues.trees * 10000),
+        renewable_percent: policyValues.renewable,
+        public_transport_percent: policyValues.transport,
+      });
+
+      setResults({
+        co2: response.co2_reduction,
+        aqi: response.aqi_improvement,
+        temp: response.temperature_change,
+        score: response.sustainability_score,
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["simulations"] });
+
+      showSuccess(`Simulation complete for ${selectedCity.name}!`);
+    } catch (error: any) {
+      showError(error?.message || "Simulation failed. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -65,7 +92,7 @@ const Index = () => {
               Environmental Dashboard
             </h1>
             <p className="text-slate-500 mt-2 text-lg">
-              Simulating a greener future for <span className="text-emerald-600 font-bold">{selectedCity.name}</span>
+              Simulating a greener future for <span className="text-emerald-600 font-bold">{selectedCity?.name || "..."}</span>
             </p>
           </div>
           <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-2xl border border-slate-200 shadow-sm">
@@ -74,25 +101,26 @@ const Index = () => {
           </div>
         </div>
 
-        {/* Top Section: Map & Results */}
+        {/* Top Section: Map & Controls */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2">
             <MapPanel selectedCity={selectedCity} onSelectCity={setSelectedCity} />
           </div>
-          <div className="lg:col-span-1">
+          <div className="lg:col-span-1 space-y-6">
+            <SimulationControls 
+              values={policyValues} 
+              onChange={handlePolicyChange} 
+              onRun={handleRunSimulation}
+              isLoading={isLoading}
+            />
             <ResultsPanel {...results} />
           </div>
         </div>
 
-        {/* Simulation Controls */}
-        <SimulationControls 
-          values={policyValues} 
-          onChange={handlePolicyChange} 
-          onRun={runSimulation} 
-        />
-
         {/* Data Visualization */}
         <ChartsPanel />
+
+        <SimulationHistory />
 
         {/* Future Prediction */}
         <FuturePredictionCard />

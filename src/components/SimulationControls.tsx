@@ -14,9 +14,10 @@ interface ControlsProps {
   };
   onChange: (key: string, val: number[]) => void;
   onRun: () => void;
+  isLoading?: boolean;
 }
 
-const SimulationControls = ({ values, onChange, onRun }: ControlsProps) => {
+const SimulationControls = ({ values, onChange, onRun, isLoading = false }: ControlsProps) => {
   return (
     <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
       <div className="flex items-center justify-between mb-8">
@@ -91,10 +92,11 @@ const SimulationControls = ({ values, onChange, onRun }: ControlsProps) => {
       <div className="mt-10 flex justify-center">
         <Button 
           onClick={onRun}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white px-12 py-6 rounded-2xl text-lg font-bold shadow-lg shadow-emerald-200 transition-all hover:scale-105 active:scale-95"
+          disabled={isLoading}
+          className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 disabled:hover:bg-emerald-600 text-white px-12 py-6 rounded-2xl text-lg font-bold shadow-lg shadow-emerald-200 transition-all hover:scale-105 active:scale-95"
         >
-          <Play className="w-5 h-5 mr-2 fill-current" />
-          Run Simulation
+          <Play className={`w-5 h-5 mr-2 fill-current ${isLoading ? "animate-pulse" : ""}`} />
+          {isLoading ? "Running..." : "Run Simulation"}
         </Button>
       </div>
     </div>
